@@ -17,7 +17,7 @@ services:
       DB_HOST: db
       DB_NAME: forgejo
       DB_USER: forgejo
-      DB_PASSWD: forgejo_password
+      DB_PASSWD: ${DB_PASSWD}
       APP_NAME: Forgejo
     volumes:
       - forgejo_data:/data
@@ -30,7 +30,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: forgejo
-      POSTGRES_PASSWORD: forgejo_password
+      POSTGRES_PASSWORD: ${DB_PASSWD}
       POSTGRES_DB: forgejo
     volumes:
       - forgejo_db_data:/var/lib/postgresql/data
