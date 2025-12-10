@@ -1,0 +1,40 @@
+services:
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:13.0.3
+    container_name: forgejo_app
+    mem_limit: 1g
+    cpus: "2.0"
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "8000:3000"
+      - "22:22"
+    environment:
+      USER_UID: 1000
+      USER_GID: 1000
+      DB_TYPE: postgres
+      DB_HOST: db
+      DB_NAME: forgejo
+      DB_USER: forgejo
+      DB_PASSWD: forgejo_password
+      APP_NAME: Forgejo
+    volumes:
+      - forgejo_data:/data
+
+  db:
+    image: postgres:15
+    container_name: forgejo_db
+    mem_limit: 1g
+    cpus: "2.0"
+    restart: always
+    environment:
+      POSTGRES_USER: forgejo
+      POSTGRES_PASSWORD: forgejo_password
+      POSTGRES_DB: forgejo
+    volumes:
+      - forgejo_db_data:/var/lib/postgresql/data
+
+volumes:
+  forgejo_db_data:
+  forgejo_data:
