@@ -22,6 +22,13 @@ services:
     volumes:
       - forgejo_data:/data
 
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
   db:
     image: postgres:15
     container_name: forgejo_db
@@ -34,6 +41,13 @@ services:
       POSTGRES_DB: forgejo
     volumes:
       - forgejo_db_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forgejo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   forgejo_db_data:
