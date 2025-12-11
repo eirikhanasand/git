@@ -1,7 +1,7 @@
 services:
-  forgejo:
+  git:
     image: codeberg.org/forgejo/forgejo:13.0.3
-    container_name: forgejo_app
+    container_name: git_ui
     mem_limit: 1g
     cpus: "2.0"
     restart: always
@@ -15,12 +15,12 @@ services:
       USER_GID: 1000
       DB_TYPE: postgres
       DB_HOST: db
-      DB_NAME: forgejo
-      DB_USER: forgejo
+      DB_NAME: git
+      DB_USER: git
       DB_PASSWD: ${DB_PASSWD}
-      APP_NAME: Forgejo
+      APP_NAME: git
     volumes:
-      - forgejo_data:/data
+      - git_data:/data
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/"]
@@ -29,26 +29,26 @@ services:
       retries: 5
       start_period: 40s
 
-  db:
+  git_db:
     image: postgres:15
-    container_name: forgejo_db
+    container_name: git_db
     mem_limit: 1g
     cpus: "2.0"
     restart: always
     environment:
-      POSTGRES_USER: forgejo
+      POSTGRES_USER: git
       POSTGRES_PASSWORD: ${DB_PASSWD}
-      POSTGRES_DB: forgejo
+      POSTGRES_DB: git
     volumes:
-      - forgejo_db_data:/var/lib/postgresql/data
+      - git_db_data:/var/lib/postgresql/data
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U forgejo"]
+      test: ["CMD-SHELL", "pg_isready -U git"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
 
 volumes:
-  forgejo_db_data:
-  forgejo_data:
+  git_db_data:
+  git_data:
