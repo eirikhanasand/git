@@ -19,6 +19,7 @@ services:
       DB_USER: git
       DB_PASSWD: ${DB_PASSWD}
       APP_NAME: git
+      FORGEJO__APP__DEFAULT_LANG: en-US
     volumes:
       - git_data:/data
 
