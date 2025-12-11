@@ -6,7 +6,7 @@ services:
     cpus: "2.0"
     restart: always
     depends_on:
-      - db
+      - git_db
     ports:
       - "8000:3000"
       - "22:22"
@@ -14,7 +14,7 @@ services:
       USER_UID: 1000
       USER_GID: 1000
       DB_TYPE: postgres
-      DB_HOST: db
+      DB_HOST: git_db
       DB_NAME: git
       DB_USER: git
       DB_PASSWD: ${DB_PASSWD}
