@@ -31,7 +31,7 @@ services:
       start_period: 40s
 
   git_db:
-    image: postgres:15
+    image: postgres:18
     container_name: git_db
     mem_limit: 1g
     cpus: "2.0"
@@ -41,7 +41,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWD}
       POSTGRES_DB: git
     volumes:
-      - git_db_data:/var/lib/postgresql/data
+      - git_db_data:/var/lib/postgresql
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U git"]
