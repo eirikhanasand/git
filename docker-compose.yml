@@ -20,6 +20,7 @@ services:
       DB_PASSWD: ${DB_PASSWD}
       APP_NAME: git
       FORGEJO__APP__DEFAULT_LANG: en-US
+      FORGEJO__ACTIONS__ENABLED: "true"
     volumes:
       - git_data:/data
 
@@ -29,6 +30,25 @@ services:
       timeout: 10s
       retries: 5
       start_period: 40s
+
+  runner:
+    image: code.forgejo.org/forgejo/runner:6.2.2
+    container_name: git_runner
+    mem_limit: 1g
+    cpus: "2.0"
+    restart: always
+    depends_on:
+      git:
+        condition: service_healthy
+    environment:
+      GITEA_INSTANCE_URL: http://git:3000
+      GITEA_RUNNER_REGISTRATION_TOKEN: ${GITEA_RUNNER_REGISTRATION_TOKEN}
+      GITEA_RUNNER_NAME: ${GITEA_RUNNER_NAME:-git-runner}
+      GITEA_RUNNER_LABELS: ${GITEA_RUNNER_LABELS:-docker:docker://node:22-bookworm}
+    volumes:
+      - runner_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: forgejo-runner daemon
 
   git_db:
     image: postgres:18
@@ -53,3 +73,4 @@ services:
 volumes:
   git_db_data:
   git_data:
+  runner_data:
