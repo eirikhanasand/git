@@ -10,7 +10,7 @@ services:
       - git_db
     ports:
       - "8000:3000"
-      - "22:22"
+      - "127.0.0.1:2222:22"
     environment:
       USER_UID: 1000
       USER_GID: 1000
