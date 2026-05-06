@@ -4,7 +4,7 @@ set -euo pipefail
 GIT_DIR="${GIT_DIR:-/home/hanasand/git}"
 SYNC_LOG="${SYNC_LOG:-$GIT_DIR/standby-sync.log}"
 DOCTOR_LOG="${DOCTOR_LOG:-$GIT_DIR/forgejo-doctor.log}"
-LOCK="${LOCK:-/tmp/hanasand-forgejo-sync-to-ovh.lock}"
+LOCK="${LOCK:-/tmp/forgejo-standby-sync.lock}"
 SYNC_SCHEDULE="${SYNC_SCHEDULE:-*/15 * * * *}"
 DOCTOR_SCHEDULE="${DOCTOR_SCHEDULE:-17 * * * *}"
 

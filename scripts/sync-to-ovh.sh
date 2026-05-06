@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOCK="${LOCK:-/run/hanasand-forgejo-sync-to-ovh.lock}"
+LOCK="${LOCK:-/tmp/forgejo-standby-sync.lock}"
 REMOTE="${REMOTE:-ubuntu@192.99.32.185}"
 REMOTE_PORT="${REMOTE_PORT:-222}"
 KEY="${KEY:-/home/hanasand/.ssh/codex_migration_ed25519}"
