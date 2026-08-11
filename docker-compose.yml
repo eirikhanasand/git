@@ -1,6 +1,6 @@
 services:
   git:
-    image: codeberg.org/forgejo/forgejo:13.0.3
+    image: codeberg.org/forgejo/forgejo:13
     container_name: git_ui
     mem_limit: 4g
     memswap_limit: 4g
@@ -89,5 +89,11 @@ services:
 
 volumes:
   git_db_data:
+    external: true
+    name: git_git_db_data
   git_data:
+    external: true
+    name: git_git_data
   runner_data:
+    external: true
+    name: git_runner_data
