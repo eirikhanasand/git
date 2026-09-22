@@ -1,0 +1,19 @@
+[Unit]
+Description=Encrypted Forgejo PostgreSQL replication to OVH
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+User=hanasand
+ExecStart=/usr/bin/ssh -NT -i /home/hanasand/.ssh/forgejo_replication_ed25519 -p 222 -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -R 127.0.0.1:15433:127.0.0.1:15432 ubuntu@192.99.32.185
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

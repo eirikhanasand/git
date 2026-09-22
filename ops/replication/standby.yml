@@ -1,0 +1,17 @@
+# Merge into docker-compose.override.yml on OVH after the initial base backup.
+services:
+  git:
+    profiles: [failover]
+    restart: "no"
+  runner:
+    profiles: [failover]
+    restart: "no"
+  git_db:
+    # Same build as the primary. Upgrade the standby before the primary.
+    image: postgres:18@sha256:4aabea78cf39b90e834caf3af7d602a18565f6fe2508705c8d01aa63245c2e20
+    volumes:
+      - git_db_streaming:/var/lib/postgresql
+volumes:
+  git_db_streaming:
+    external: true
+    name: git_git_db_streaming

@@ -1,0 +1,11 @@
+[Unit]
+Description=Private Forgejo standby replication endpoint
+Requires=docker.service
+After=docker.service
+
+[Socket]
+ListenStream=172.26.0.1:15432
+NoDelay=true
+
+[Install]
+WantedBy=sockets.target

@@ -1,0 +1,5 @@
+# Merge into docker-compose.override.yml on Inspur.
+services:
+  git_db:
+    ports:
+      - "127.0.0.1:15432:5432"

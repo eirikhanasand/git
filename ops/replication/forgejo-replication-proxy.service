@@ -1,0 +1,12 @@
+[Unit]
+Description=Forward the private standby endpoint into the SSH tunnel
+Requires=forgejo-replication-proxy.socket
+After=forgejo-replication-proxy.socket
+
+[Service]
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd 127.0.0.1:15433
+DynamicUser=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes

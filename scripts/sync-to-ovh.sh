@@ -4,11 +4,9 @@ set -euo pipefail
 LOCK="${LOCK:-/tmp/forgejo-standby-sync.lock}"
 REMOTE="${REMOTE:-ubuntu@192.99.32.185}"
 REMOTE_PORT="${REMOTE_PORT:-222}"
-KEY="${KEY:-/home/hanasand/.ssh/codex_migration_ed25519}"
+KEY="${KEY:-/home/hanasand/.ssh/git_standby_sync_ed25519}"
 REMOTE_GIT_DIR="${REMOTE_GIT_DIR:-/home/ubuntu/git}"
 LOCAL_GIT_DIR="${LOCAL_GIT_DIR:-/home/hanasand/git}"
-LOCAL_DUMP="${LOCAL_DUMP:-/tmp/forgejo_git.dump}"
-REMOTE_DUMP="${REMOTE_DUMP:-/tmp/forgejo_git.dump}"
 LOG="${LOG:-/var/log/hanasand-forgejo-sync-to-ovh.log}"
 FORGEJO_DATA_VOLUME="${FORGEJO_DATA_VOLUME:-git_git_data}"
 RUNNER_DATA_VOLUME="${RUNNER_DATA_VOLUME:-git_runner_data}"
@@ -17,6 +15,7 @@ REMOTE_RUNNER_DATA_PATH="${REMOTE_RUNNER_DATA_PATH:-/var/lib/docker/volumes/git_
 SYNC_RUNNER_DATA="${SYNC_RUNNER_DATA:-1}"
 
 SSH_OPTS=(-n -i "$KEY" -p "$REMOTE_PORT" -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=6)
+SSH_SCRIPT_OPTS=(-i "$KEY" -p "$REMOTE_PORT" -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=6)
 RSYNC_SSH="ssh -i $KEY -p $REMOTE_PORT -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=6"
 
 exec >>"$LOG" 2>&1
@@ -33,31 +32,27 @@ if ! flock -n 9; then
     exit 0
 fi
 
-finish() {
-    local status=$?
-    rm -f "$LOCAL_DUMP"
-    if [ "$status" -ne 0 ]; then
-        echo "sync failed, attempting to keep standby app services available"
-        ssh "${SSH_OPTS[@]}" "$REMOTE" "cd '$REMOTE_GIT_DIR' && docker compose up -d git_db git runner" || true
-    fi
-    exit "$status"
-}
-trap finish EXIT
+# A failed file sync must never start an app against a read-only database.
+trap 'status=$?; if [ "$status" -ne 0 ]; then echo "sync failed; standby remains fenced"; fi' EXIT
 
-run_local_doctor() {
-    if [ -x /usr/local/sbin/hanasand-forgejo-doctor ]; then
-        /usr/local/sbin/hanasand-forgejo-doctor
-    else
-        docker exec --user git git_ui /usr/local/bin/gitea \
-            --config /data/gitea/conf/app.ini \
-            doctor check \
-            --run synchronize-repo-heads \
-            --run hooks \
-            --run authorized-keys \
-            --run enable-push-options \
-            --fix \
-            --log-file -
-    fi
+check_standby() {
+    ssh "${SSH_SCRIPT_OPTS[@]}" "$REMOTE" 'bash -se' <<'REMOTE_CHECK'
+set -euo pipefail
+[ "$(docker exec git_db psql -X -U git -d git -Atc "SELECT pg_is_in_recovery()")" = t ] || {
+    echo "Refusing to overwrite a promoted or non-replica standby" >&2
+    exit 1
+}
+for container in git_ui git_runner; do
+    [ "$(docker inspect -f '{{.State.Running}}' "$container")" = false ] || {
+        echo "$container must remain stopped until failover" >&2
+        exit 1
+    }
+done
+[ "$(docker exec git_db psql -X -U git -d git -Atc "SELECT status FROM pg_stat_wal_receiver")" = streaming ] || {
+    echo "Standby WAL receiver is not streaming" >&2
+    exit 1
+}
+REMOTE_CHECK
 }
 
 sync_volume() {
@@ -81,46 +76,25 @@ sync_volume() {
 
 cd "$LOCAL_GIT_DIR"
 
-echo "repairing primary repository metadata"
-run_local_doctor
+echo "checking streaming standby before file sync"
+check_standby
 
-echo "dumping primary database"
-docker exec git_db pg_dump -U git -d git -Fc --no-owner --no-acl > "$LOCAL_DUMP"
-
-echo "pausing standby app services"
-ssh "${SSH_OPTS[@]}" "$REMOTE" "cd '$REMOTE_GIT_DIR' && docker compose stop runner git && docker compose up -d git_db"
-ssh "${SSH_OPTS[@]}" "$REMOTE" 'until docker exec git_db pg_isready -U git >/dev/null 2>&1; do sleep 1; done'
-
-echo "copying standby dump and data volumes"
-rsync -a --delete -e "$RSYNC_SSH" "$LOCAL_DUMP" "$REMOTE:$REMOTE_DUMP"
+echo "copying changed data files; PostgreSQL replicates independently"
 sync_volume "$FORGEJO_DATA_VOLUME" "$REMOTE_FORGEJO_DATA_PATH"
 if [ "$SYNC_RUNNER_DATA" = "1" ]; then
     sync_volume "$RUNNER_DATA_VOLUME" "$REMOTE_RUNNER_DATA_PATH"
 fi
 
-echo "restoring standby database"
-ssh "${SSH_OPTS[@]}" "$REMOTE" "cd '$REMOTE_GIT_DIR' && docker exec git_db dropdb -U git --if-exists --force git && docker exec git_db createdb -U git git && docker exec -i git_db pg_restore -U git -d git --no-owner --no-acl < '$REMOTE_DUMP'"
-
-echo "starting standby app services"
-ssh "${SSH_OPTS[@]}" "$REMOTE" "cd '$REMOTE_GIT_DIR' && docker compose up -d git runner"
-
-echo "checking standby health"
-ssh "${SSH_OPTS[@]}" "$REMOTE" '
-set -euo pipefail
-for _ in $(seq 1 90); do
-    ui_health=$(docker inspect -f "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}" git_ui 2>/dev/null || true)
-    runner_state=$(docker inspect -f "{{.State.Status}}" git_runner 2>/dev/null || true)
-    if [ "$ui_health" = healthy ] && [ "$runner_state" = running ] && curl -fsS http://127.0.0.1:8000/explore/repos >/dev/null; then
-        docker exec --user git git_ui /usr/local/bin/gitea \
-            --config /data/gitea/conf/app.ini \
-            doctor check --run synchronize-repo-heads --run hooks --run authorized-keys --fix --log-file -
-        docker ps --filter name=git_ --format "{{.Names}} {{.Status}}"
-        exit 0
-    fi
+echo "checking streaming standby after file sync"
+check_standby
+# Wait for a fixed WAL position, so an idle primary is not mistaken for lag.
+lsn=$(docker exec git_db psql -X -U git -d git -Atc "SELECT pg_current_wal_lsn()")
+[[ "$lsn" =~ ^[0-9A-F]+/[0-9A-F]+$ ]]
+caught_up=false
+for _ in $(seq 1 30); do
+    replayed=$(ssh "${SSH_OPTS[@]}" "$REMOTE" "docker exec git_db psql -X -U git -d git -Atc \"SELECT pg_last_wal_replay_lsn() >= '$lsn'::pg_lsn\"")
+    if [ "$replayed" = t ]; then caught_up=true; break; fi
     sleep 2
 done
-docker ps -a --filter name=git_ --format "{{.Names}} {{.Status}}"
-exit 1
-'
-
-printf '[%s] sync ok\n' "$(date -Is)"
+[ "$caught_up" = true ] || { echo "Standby did not replay $lsn within 60 seconds" >&2; exit 1; }
+printf '[%s] sync ok; standby replayed %s\n' "$(date -Is)" "$lsn"
